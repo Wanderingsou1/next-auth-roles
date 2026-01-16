@@ -25,7 +25,6 @@ export default function DashboardPage() {
 
   const [user, setUser] = useState<User | null> (null);
   const [loading, setLoading] = useState(true);
-  const [hasLoaded, setHasLoaded] = useState(false);
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -60,20 +59,34 @@ export default function DashboardPage() {
     } 
   };
 
+  // useEffect(() => {
+  //   const init = async () => {
+  //     setLoading(true);
+  //     await fetchMe();
+  //     setLoading(false);
+  //   };
+  //   init();
+  // }, []);
+  
+  // useEffect(() => {
+  //   if(user?.role === "admin") {
+  //     fetchUsers();
+  //   }
+  // }, [user]);
+
   useEffect(() => {
     const init = async () => {
       setLoading(true);
-      await fetchMe();
+      const currentUser = await fetchMe();
+
+      if(currentUser?.role === "admin") {
+        await fetchUsers();
+      }
+
       setLoading(false);
-    };
+    }
     init();
   }, []);
-  
-  useEffect(() => {
-    if(user?.role === "admin") {
-      fetchUsers();
-    }
-  }, [user]);
 
 
   const handleLogout = async () => {
