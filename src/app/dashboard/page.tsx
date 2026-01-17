@@ -213,6 +213,7 @@ export default function DashboardPage() {
                 {user.role === "superadmin" && (
                   <TableHead>Role Action</TableHead>
                 )}
+                <TableHead>Todos</TableHead>
                 <TableHead className="text-right">Action</TableHead>
               </TableRow>
             </TableHeader>
@@ -247,6 +248,12 @@ export default function DashboardPage() {
                       )}
                     </TableCell>
                   )}
+                  <TableCell>
+                    <Button variant="outline" size="sm" 
+                      onClick={() => router.push(`/admin/todos?userId=${u._id}`)}>
+                        View Todos
+                      </Button>
+                  </TableCell>
                   <TableCell className="text-right">
                     {canDelete ? (
                     <AlertDialog>
