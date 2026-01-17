@@ -20,7 +20,7 @@ export async function GET() {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
-    if (decoded.role !== "admin") {
+    if (decoded.role !== "admin" && decoded.role !== "superadmin") {
       return NextResponse.json({ message: "Forbidden" }, { status: 403 });
     }
 

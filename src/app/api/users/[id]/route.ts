@@ -77,9 +77,23 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
       return NextResponse.json({ message: "Unauthorized"}, {status: 401});
     }
 
-    if(decoded.role !== 'admin') {
+    if(decoded.role !== 'admin' && decoded.role !== 'superadmin') {
       return NextResponse.json({ message: "Forbidden"}, {status: 403});
     }
+
+    const targetUser = await User.findById((await params).id);
+    if(!targetUser) return NextResponse.json({message: "User not found"}, {status: 404});
+
+    // admin can only delete users with role 'user'
+    if(decoded.role === 'admin' && targetUser.role !== 'user') {
+      return NextResponse.json({message: "Admin can only delete users"}, {status: 403});
+    }
+
+    // superadmin can delete any user including admins
+    if(decoded.role === 'superadmin' && targetUser.role === 'superadmin') {
+      return NextResponse.json({message: "Superadmins cannot delete self"}, {status: 403});
+    }
+
 
     await User.findByIdAndDelete((await params).id);
 
