@@ -39,8 +39,10 @@ export async function PUT(
 
     const updateData: UpdateData = { ...body };
 
-    if (updateData.password != null) {
+    if (typeof updateData.password === "string" && updateData.password.trim() !== "") {
       updateData.password = await bcrypt.hash(updateData.password, 10);
+    } else {
+      delete updateData.password;
     }
 
     const updatedUser = await User.findByIdAndUpdate(id, updateData, {
