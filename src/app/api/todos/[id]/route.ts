@@ -1,33 +1,27 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
-import { verifyToken } from "@/lib/jwt";
-import { cookies } from "next/headers";
 import { Todo } from "@/models/Todo";
+import { User } from "@/models/User";
 
-export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function PUT(req: Request, { params }: { params: {id: string} }) {
   try {
     await connectDB();
 
-    const cookieStore = cookies();
-    const token = (await cookieStore).get("token")?.value;
+    const userId = req.headers.get("x-user-id");
+    if(!userId) return NextResponse.json({message: "Unauthorized"}, {status: 401});
 
-    if(!token) return NextResponse.json({message: "Unauthorized"}, {status:401});
-
-    const decoded = verifyToken(token);
-
-    if(typeof decoded === "string" || !decoded || !("id" in decoded)) {
-      return NextResponse.json({message: "Unauthorized"}, {status:401});
-    }
+    const user = await User.findById(userId).select("-password");
+    if(!user) return NextResponse.json({message: "Unauthorized"}, {status: 401});
 
     // only users can update their todos
-    if(decoded.role !== "user") {
+    if(user.role !== "user") {
       return NextResponse.json({message: "Forbidden"}, {status:403});
     }
 
     const body = await req.json();
 
     const todo = await Todo.findOneAndUpdate(
-      { _id: (await params).id, userId: decoded.id },
+      { _id: params.id, userId: user.id },
       body,
       { new: true}
     );
@@ -41,26 +35,21 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 }
 
 
-export async function DELETE(req: Request, { params }: { params: Promise<{id: string}> }) {
+export async function DELETE(req: Request, { params }: { params: {id: string} }) {
   try {
     await connectDB();
 
-    const cookieStore = cookies();
-    const token = (await cookieStore).get("token")?.value;
+    const userId = req.headers.get("x-user-id");
+    if(!userId) return NextResponse.json({message: "Unauthorized"}, {status: 401});
 
-    if(!token) return NextResponse.json({message: "Unauthorized"}, {status:401});
-
-    const decoded = verifyToken(token);
-
-    if(typeof decoded === "string" || !decoded || !("id" in decoded)) {
-      return NextResponse.json({message: "Unauthorized"}, {status:401});
-    }
+    const user = await User.findById(userId).select("-password");
+    if(!user) return NextResponse.json({message: "Unauthorized"}, {status: 401});
 
     // users can delete their todos
-    if(decoded.role === "user") {
+    if(user.role === "user") {
 
       const todo = await Todo.findOneAndDelete(
-        { _id: (await params).id, userId: decoded.id }
+        { _id: params.id, userId: user.id }
       );
 
       if(!todo) return NextResponse.json({message: "Todo not found"}, {status:404});
@@ -68,14 +57,14 @@ export async function DELETE(req: Request, { params }: { params: Promise<{id: st
     }
 
     // superadmin can delete any todo
-    if(decoded.role === "superadmin") {
-      const todo = await Todo.findByIdAndDelete((await params).id);
+    if(user.role === "superadmin") {
+      const todo = await Todo.findByIdAndDelete(params.id);
 
       if(!todo) return NextResponse.json({message: "Todo not found"}, {status:404});
       return NextResponse.json({message: "Todo deleted successfully"}, {status: 200});
     }
 
-
+    return NextResponse.json({message: "Forbidden"}, {status: 403});
   } catch (error) {
     return NextResponse.json({message: "Server error", error}, {status: 500});
   }

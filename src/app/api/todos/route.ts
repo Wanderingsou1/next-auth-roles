@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
-import { cookies } from "next/headers";
-import { verifyToken } from "@/lib/jwt";
 import { Todo } from "@/models/Todo";
+import { User } from "@/models/User";
 
 
 // Create a new todo
@@ -10,20 +9,13 @@ export async function POST(req: Request) {
   try {
     await connectDB();
 
-    const cookieStore = cookies();
-    const token = (await cookieStore).get("token")?.value;
+    const userId = req.headers.get("x-user-id");
+    if(!userId) return NextResponse.json({message: "Unauthorized"}, {status: 401});
 
-    if(!token) {
-      return NextResponse.json({message: "Unauthorized"}, {status:401});
-    }
+    const user = await User.findById(userId).select("-password");
+    if(!user) return NextResponse.json({message: "Unauthorized"}, {status: 401});
 
-    const decoded = verifyToken(token);
-
-    if(typeof decoded === "string" || !decoded || !("id" in decoded)) {
-      return NextResponse.json({message: "Unauthorized"}, {status:401});
-    }
-
-    if(decoded.role !== "user") {
+    if(user.role !== "user") {
       return NextResponse.json({message: "Forbidden"}, {status:403});
     }
 
@@ -34,7 +26,7 @@ export async function POST(req: Request) {
     }
 
     const todo = await Todo.create({
-      userId: decoded.id,
+      userId: user.id,
       name,
       description,
       status,
@@ -43,34 +35,27 @@ export async function POST(req: Request) {
 
     return NextResponse.json({message: "Todo created successfully", todo}, {status: 201});
   } catch (error) {
-    return NextResponse.json({message: "Server error", error}, {status: 500});
+    return NextResponse.json({message: "Server error"}, {status: 500});
   }
 }
 
 
 // Get all todos for the authenticated user
-export async function GET() {
+export async function GET(req: Request) {
   try {
     await connectDB();
 
-    const cookieStore = cookies();
-    const token = (await cookieStore).get("token")?.value;
+    const userId = req.headers.get("x-user-id");
+    if(!userId) return NextResponse.json({message: "Unauthorized"}, {status: 401});
 
-    if(!token) {
-      return NextResponse.json({message: "Unauthorized"}, {status:401});
-    }
-
-    const decoded = verifyToken(token);
-
-    if(typeof decoded === "string" || !decoded || !("id" in decoded)) {
-      return NextResponse.json({message: "Unauthorized"}, {status: 401});
-    }
+    const user = await User.findById(userId).select("-password");
+    if(!user) return NextResponse.json({message: "Unauthorized"}, {status: 401});
 
     const filter: { userId?: string } = {};
 
     // normal users can only see their own todos
-    if(decoded.role === "user") {
-      filter.userId = decoded.id;
+    if(user.role === "user") {
+      filter.userId = user.id;
     }
 
     // admin and superadmin can see all todos
@@ -78,6 +63,6 @@ export async function GET() {
 
     return NextResponse.json({todos}, {status: 200});
   } catch (error) {
-    return NextResponse.json({message: "Server error", error}, {status: 500});
+    return NextResponse.json({message: "Server error"}, {status: 500});
   }
 }

@@ -1,32 +1,20 @@
 import { NextResponse } from "next/server";
 import { connectDB } from "@/lib/db";
 import { User } from "@/models/User";
-import { cookies } from "next/headers";
-import { verifyToken } from "@/lib/jwt";
 import bcrypt from "bcryptjs";
 
-export async function PUT(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const { id } = await params;
+export async function PUT( req: Request, { params }: { params: {id: string} }) {
   try {
     await connectDB();
-    const cookieStore = cookies();
-    const token = (await cookieStore).get("token")?.value;
 
-    if (!token) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
+    const userId = req.headers.get("x-user-id");
+    if(!userId) return NextResponse.json({message: "Unauthorized"}, {status: 401});
 
-    const decoded = verifyToken(token);
+    const user = await User.findById(userId).select("-password");
+    if(!user) return NextResponse.json({message: "Unauthorized"}, {status: 401});
 
-    if (typeof decoded === "string" || !decoded || !("id" in decoded)) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
-    }
-
-    if (decoded.id !== id) {
-      return NextResponse.json({ message: "Forbidden", decoded, id}, { status: 403 });
+    if (user.id.toString() !== params.id) {
+      return NextResponse.json({ message: "Forbidden" }, { status: 403 });
     }
 
     const body = await req.json();
@@ -45,7 +33,7 @@ export async function PUT(
       delete updateData.password;
     }
 
-    const updatedUser = await User.findByIdAndUpdate(id, updateData, {
+    const updatedUser = await User.findByIdAndUpdate(params.id, updateData, {
       new: true,
     }).select("-password");
 
@@ -54,30 +42,23 @@ export async function PUT(
       user: updatedUser,
     });
 
-  } catch (error) {
-    return NextResponse.json(
-      { message: "Server error", error },
-      { status: 500 }
-    );
+  } catch {
+    return NextResponse.json({ message: "Server error"}, { status: 500 });
   }
 }
 
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     await connectDB();
-    const cookieStore = cookies();
-    const token = (await cookieStore).get("token")?.value;
-    if (!token) {
-      return NextResponse.json({message: "Unauthorized"}, {status: 401});
-    }
 
-    const decoded = verifyToken(token);
+    const userId = req.headers.get("x-user-id");
+    if(!userId) return NextResponse.json({message: "Unauthorized"}, {status: 401});
 
-    if(typeof decoded === "string" || !decoded || !("id" in decoded)) {
-      return NextResponse.json({ message: "Unauthorized"}, {status: 401});
-    }
+    const user = await User.findById(userId).select("-password");
+    if(!user) return NextResponse.json({message: "Unauthorized"}, {status: 401});
 
-    if(decoded.role !== 'admin' && decoded.role !== 'superadmin') {
+    // only admin and superadmin can delete users
+    if(user.role !== 'admin' && user.role !== 'superadmin') {
       return NextResponse.json({ message: "Forbidden"}, {status: 403});
     }
 
@@ -85,12 +66,12 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
     if(!targetUser) return NextResponse.json({message: "User not found"}, {status: 404});
 
     // admin can only delete users with role 'user'
-    if(decoded.role === 'admin' && targetUser.role !== 'user') {
+    if(user.role === 'admin' && targetUser.role !== 'user') {
       return NextResponse.json({message: "Admin can only delete users"}, {status: 403});
     }
 
     // superadmin can delete any user including admins
-    if(decoded.role === 'superadmin' && targetUser.role === 'superadmin') {
+    if(user.role === 'superadmin' && targetUser.role === 'superadmin') {
       return NextResponse.json({message: "Superadmins cannot delete self"}, {status: 403});
     }
 
@@ -99,7 +80,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
 
     return NextResponse.json({message: "User deleted successfully"});
 
-  } catch (error) {
-    return NextResponse.json({ message: "Server error", error}, { status: 500});
+  } catch {
+    return NextResponse.json({ message: "Server error"}, { status: 500});
   }
 }

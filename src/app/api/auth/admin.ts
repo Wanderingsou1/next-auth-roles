@@ -1,29 +1,20 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { connectDB } from "@/lib/db";
-import { verifyToken } from "@/lib/jwt";
 import { User } from "@/models/User";
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const cookieStore = cookies();
-    const token= (await cookieStore).get("token")?.value;
+    await connectDB();
 
-    if(!token) {
-      return NextResponse.json({message: "Unauthorized"}, {status: 401});
-    }
+    const userId = req.headers.get("x-user-id");
+    if(!userId) return NextResponse.json({message: "Unauthorized"}, {status: 401});
 
-    const decoded = verifyToken(token);
+    const user = await User.findById(userId).select("-password");
+    if(!user) return NextResponse.json({message: "Unauthorized"}, {status: 401});
 
-    if(typeof decoded === "string" || !decoded?.id) {
-      return NextResponse.json({message: "Unauthorized"}, {status: 401});
-    }
-
-    if(decoded.role !== "admin") {
+    if(user.role !== "admin" && user.role !== "superadmin") {
       return NextResponse.json({message: "Forbidden"}, {status: 403});
     }
-
-    await connectDB();
 
     const users = await User.find().select("-password");
     return NextResponse.json({users}, {status: 200});
