@@ -3,8 +3,9 @@ import { connectDB } from "@/lib/db";
 import { Todo } from "@/models/Todo";
 import { User } from "@/models/User";
 
-export async function PUT(req: Request, { params }: { params: {id: string} }) {
+export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const {id} = await params;
     await connectDB();
 
     const userId = req.headers.get("x-user-id");
@@ -21,7 +22,7 @@ export async function PUT(req: Request, { params }: { params: {id: string} }) {
     const body = await req.json();
 
     const todo = await Todo.findOneAndUpdate(
-      { _id: params.id, userId: user.id },
+      { _id: id, userId: user.id },
       body,
       { new: true}
     );
@@ -35,8 +36,9 @@ export async function PUT(req: Request, { params }: { params: {id: string} }) {
 }
 
 
-export async function DELETE(req: Request, { params }: { params: {id: string} }) {
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const {id} = await params;
     await connectDB();
 
     const userId = req.headers.get("x-user-id");
@@ -49,7 +51,7 @@ export async function DELETE(req: Request, { params }: { params: {id: string} })
     if(user.role === "user") {
 
       const todo = await Todo.findOneAndDelete(
-        { _id: params.id, userId: user.id }
+        { _id: id, userId: user.id }
       );
 
       if(!todo) return NextResponse.json({message: "Todo not found"}, {status:404});
@@ -58,7 +60,7 @@ export async function DELETE(req: Request, { params }: { params: {id: string} })
 
     // superadmin can delete any todo
     if(user.role === "superadmin") {
-      const todo = await Todo.findByIdAndDelete(params.id);
+      const todo = await Todo.findByIdAndDelete(id);
 
       if(!todo) return NextResponse.json({message: "Todo not found"}, {status:404});
       return NextResponse.json({message: "Todo deleted successfully"}, {status: 200});

@@ -3,8 +3,9 @@ import { connectDB } from "@/lib/db";
 import { User } from "@/models/User";
 import bcrypt from "bcryptjs";
 
-export async function PUT( req: Request, { params }: { params: {id: string} }) {
+export async function PUT( req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id } = await params;
     await connectDB();
 
     const userId = req.headers.get("x-user-id");
@@ -13,7 +14,7 @@ export async function PUT( req: Request, { params }: { params: {id: string} }) {
     const user = await User.findById(userId).select("-password");
     if(!user) return NextResponse.json({message: "Unauthorized"}, {status: 401});
 
-    if (user.id.toString() !== params.id) {
+    if (user.id.toString() !== id) {
       return NextResponse.json({ message: "Forbidden" }, { status: 403 });
     }
 
@@ -33,7 +34,7 @@ export async function PUT( req: Request, { params }: { params: {id: string} }) {
       delete updateData.password;
     }
 
-    const updatedUser = await User.findByIdAndUpdate(params.id, updateData, {
+    const updatedUser = await User.findByIdAndUpdate(id, updateData, {
       new: true,
     }).select("-password");
 
