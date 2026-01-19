@@ -3,8 +3,8 @@ import { supabaseServer } from "@/lib/supabaseServer";
 
 export async function POST() {
   try {
-    const supabase = await supabaseServer();
-    await supabase.auth.signOut();
+    const supabase = supabaseServer();
+    (await supabase).auth.signOut();
 
     return NextResponse.json(
       { message: "User logged out successfully" },
