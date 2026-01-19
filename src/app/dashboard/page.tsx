@@ -15,7 +15,7 @@ import { AlertDialogDescription } from "@radix-ui/react-alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface User {
-  _id: string;
+  id: string;
   name: string;
   email: string;
   role: "admin" | "user" | "superadmin";
@@ -86,9 +86,10 @@ export default function DashboardPage() {
       const body = {name, 
       email,
       ...(password.trim() ? {password} : {})};
-      const res = await fetch(`/api/users/${user?._id}`, {
+      const res = await fetch(`/api/users/${user?.id}`, {
         method: "PUT",
         headers: { "Content-type": "application/json"},
+        credentials: "include",
         body: JSON.stringify(body),
       })
 
@@ -221,19 +222,19 @@ export default function DashboardPage() {
             <TableBody>
               {users.map((u) => {
 
-                const canDelete = user.role === "superadmin" ? u._id !== user._id : u.role === "user";
+                const canDelete = user.role === "superadmin" ? u.id !== user.id : u.role === "user";
 
                 return (
-                <TableRow key={u._id}>
+                <TableRow key={u.id}>
                   <TableCell>{u.name}</TableCell>
                   <TableCell>{u.email}</TableCell>
                   <TableCell>{u.role}</TableCell>
                   {user.role === "superadmin" && (
                     <TableCell>
-                      {u.role !== "superadmin" && u._id !== user._id ? (
+                      {u.role !== "superadmin" && u.id !== user.id ? (
                         <Select
                           value={u.role}
-                          onValueChange={(value) => handleChangeRole(u._id, value as "user" | "admin")} >
+                          onValueChange={(value) => handleChangeRole(u.id, value as "user" | "admin")} >
                           <SelectTrigger className="w-[160px]">
                             <SelectValue placeholder="Change role" />
                           </SelectTrigger>
@@ -249,10 +250,16 @@ export default function DashboardPage() {
                     </TableCell>
                   )}
                   <TableCell>
+                    {u.role === "user" ? (
                     <Button variant="outline" size="sm" 
-                      onClick={() => router.push(`/admin/todos?userId=${u._id}`)}>
+                      onClick={() => router.push(`/admin/todos?userId=${u.id}`)}>
                         View Todos
                       </Button>
+                    ) : (
+                      <Button variant="outline" size="sm" disabled>
+                        View Todos
+                      </Button>
+                    )}
                   </TableCell>
                   <TableCell className="text-right">
                     {canDelete ? (
@@ -271,7 +278,7 @@ export default function DashboardPage() {
 
                         <AlertDialogFooter>
                           <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => handleDeleteUser(u._id)} className="bg-red-600 hover:bg-red-700">
+                          <AlertDialogAction onClick={() => handleDeleteUser(u.id)} className="bg-red-600 hover:bg-red-700">
                             Delete
                           </AlertDialogAction>
                         </AlertDialogFooter>

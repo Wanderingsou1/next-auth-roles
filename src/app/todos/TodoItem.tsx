@@ -40,7 +40,7 @@ export default function TodoItem({
     try {
       setUpdating(true);
 
-      const res = await fetch(`/api/todos/${todo._id}`, {
+      const res = await fetch(`/api/todos/${todo.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
@@ -64,7 +64,7 @@ export default function TodoItem({
 
   const deleteTodo = async () => {
     try {
-      const res = await fetch(`/api/todos/${todo._id}`, {
+      const res = await fetch(`/api/todos/${todo.id}`, {
         method: "DELETE",
         credentials: "include",
       });
@@ -161,8 +161,8 @@ export default function TodoItem({
         </div>
 
         <p className="text-xs text-muted-foreground">
-          Created: {new Date(todo.createdAt).toLocaleString()} | Updated:{" "}
-          {new Date(todo.updatedAt).toLocaleString()}
+          Created: {new Date(todo.created_at).toLocaleString()} | Updated:{" "}
+          {new Date(todo.updated_at).toLocaleString()}
         </p>
       </CardContent>
     </Card>

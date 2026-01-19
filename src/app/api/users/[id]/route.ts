@@ -1,87 +1,110 @@
 import { NextResponse } from "next/server";
-import { connectDB } from "@/lib/db";
-import { User } from "@/models/User";
-import bcrypt from "bcryptjs";
+import { supabaseServer } from "@/lib/supabaseServer";
 
-export async function PUT( req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function PUT(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
   try {
     const { id } = await params;
-    await connectDB();
+    const supabase = supabaseServer();
 
-    const userId = req.headers.get("x-user-id");
-    if(!userId) return NextResponse.json({message: "Unauthorized"}, {status: 401});
+    // Get logged in user
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError || !authData.user)
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
 
-    const user = await User.findById(userId).select("-password");
-    if(!user) return NextResponse.json({message: "Unauthorized"}, {status: 401});
+    // Only update own profile
+    console.log(authData.user.id);
+    console.log(id);
+    if (authData.user.id !== id)
+      return NextResponse.json({ message: "unauthorized" }, { status: 401 });
 
-    if (user.id.toString() !== id) {
-      return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+    const { name, email, password } = await req.json();
+
+    // Update auth email, password if provided
+    if (email || password) {
+      const { error } = await supabase.auth.updateUser({ email, password });
+
+      if (error)
+        return NextResponse.json({ message: error.message }, { status: 400 });
     }
 
-    const body = await req.json();
+    // Update name is the profile
+    if (name) {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ name })
+        .eq("id", id);
 
-    interface UpdateData {
-      name?: string;
-      email?: string;
-      password?: string;
+      if (error)
+        return NextResponse.json({ message: error.message }, { status: 400 });
     }
 
-    const updateData: UpdateData = { ...body };
-
-    if (typeof updateData.password === "string" && updateData.password.trim() !== "") {
-      updateData.password = await bcrypt.hash(updateData.password, 10);
-    } else {
-      delete updateData.password;
-    }
-
-    const updatedUser = await User.findByIdAndUpdate(id, updateData, {
-      new: true,
-    }).select("-password");
-
-    return NextResponse.json({
-      message: "User updated successfully",
-      user: updatedUser,
-    });
-
+    return NextResponse.json({ message: "Profile Updated Successfully " });
   } catch {
-    return NextResponse.json({ message: "Server error"}, { status: 500 });
+    return NextResponse.json({ message: "Server error" }, { status: 500 });
   }
 }
 
-export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
   try {
-    await connectDB();
+    const { id } = await params;
+    const supabase = supabaseServer();
 
-    const userId = req.headers.get("x-user-id");
-    if(!userId) return NextResponse.json({message: "Unauthorized"}, {status: 401});
+    // Auth User
+    const { data: authData } = await supabase.auth.getUser();
+    if (!authData.user)
+      NextResponse.json({ message: "Unauthorized" }, { status: 401 });
 
-    const user = await User.findById(userId).select("-password");
-    if(!user) return NextResponse.json({message: "Unauthorized"}, {status: 401});
+    // Fetch Requester Role
+    const { data: me } = await supabase
+      .from("profile")
+      .select("role")
+      .eq("id", authData.user?.id)
+      .single();
 
-    // only admin and superadmin can delete users
-    if(user.role !== 'admin' && user.role !== 'superadmin') {
-      return NextResponse.json({ message: "Forbidden"}, {status: 403});
+    // users cannot delete users
+    if (!me || (me.role !== "admin" && me.role !== "superadmin")) {
+      return NextResponse.json({ message: "Forbidden" }, { status: 403 });
     }
 
-    const targetUser = await User.findById((await params).id);
-    if(!targetUser) return NextResponse.json({message: "User not found"}, {status: 404});
+    // Fetch target user role
+
+    const { data: target } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", id)
+      .single();
+
+    if (!target)
+      return NextResponse.json({ message: "User not found" }, { status: 404 });
 
     // admin can only delete users with role 'user'
-    if(user.role === 'admin' && targetUser.role !== 'user') {
-      return NextResponse.json({message: "Admin can only delete users"}, {status: 403});
+    if (me.role === "admin" && target.role !== "user") {
+      return NextResponse.json(
+        { message: "Admin can only delete users" },
+        { status: 403 },
+      );
     }
 
-    // superadmin can delete any user including admins
-    if(user.role === 'superadmin' && targetUser.role === 'superadmin') {
-      return NextResponse.json({message: "Superadmins cannot delete self"}, {status: 403});
+    // superadmin cannot delete self
+    if (me.role === "superadmin" && id === authData.user?.id) {
+      return NextResponse.json(
+        { message: "Superadmin cannot delete self" },
+        { status: 403 },
+      );
     }
 
+    const { error } = await supabase.auth.admin.deleteUser(id);
+    if (error)
+      return NextResponse.json({ message: error.message }, { status: 400 });
 
-    await User.findByIdAndDelete((await params).id);
-
-    return NextResponse.json({message: "User deleted successfully"});
-
+    return NextResponse.json({ message: "User deleted successfully" });
   } catch {
-    return NextResponse.json({ message: "Server error"}, { status: 500});
+    return NextResponse.json({ message: "Server error" }, { status: 500 });
   }
 }

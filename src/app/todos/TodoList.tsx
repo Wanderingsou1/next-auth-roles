@@ -21,7 +21,7 @@ export default function TodoList(
   return (
     <div className="space-y-3">
       {todos.map((todo) => (
-        <TodoItem key={todo._id} me={me} todo={todo} onChanged={onChanged} />
+        <TodoItem key={todo.id} me={me} todo={todo} onChanged={onChanged} />
       ))}
     </div>
   );

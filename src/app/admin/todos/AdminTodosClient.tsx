@@ -56,6 +56,7 @@ export default function AdminTodosClient() {
     }
 
     const data = await res.json();
+
     setTodos(data.todos || []);
   };
 
@@ -70,13 +71,16 @@ export default function AdminTodosClient() {
     init();
   }, []);
 
-  const filteredTodos = useMemo(() => {
-    if(!userId) return todos;
-    return todos.filter((t) => t.userId === userId);  
-  }, [todos, userId]);
+  // const filteredTodos = useMemo(() => {
+  //   if(!userId) return todos;
+  //   return todos.filter((t) => t.userId === userId);  
+  // }, [todos, userId]);
+  
+  const filteredTodos = todos;
 
   if(loading) return <p>Loading...</p>;
   if(!me) return null;
+
 
 
   return (

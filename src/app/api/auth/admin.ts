@@ -1,24 +1,39 @@
 import { NextResponse } from "next/server";
-import { connectDB } from "@/lib/db";
-import { User } from "@/models/User";
+import { supabaseServer } from "@/lib/supabaseServer";
 
-export async function GET(req: Request) {
+export async function GET() {
   try {
-    await connectDB();
+    const supabase = await supabaseServer();
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError || !authData.user) {
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    }
 
-    const userId = req.headers.get("x-user-id");
-    if(!userId) return NextResponse.json({message: "Unauthorized"}, {status: 401});
+    const { data: user, error: userError } = await supabase
+      .from("profiles")
+      .select("id, role")
+      .eq("id", authData.user.id)
+      .single();
 
-    const user = await User.findById(userId).select("-password");
-    if(!user) return NextResponse.json({message: "Unauthorized"}, {status: 401});
+    if (userError || !user) {
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    }
 
     if(user.role !== "admin" && user.role !== "superadmin") {
       return NextResponse.json({message: "Forbidden"}, {status: 403});
     }
 
-    const users = await User.find().select("-password");
+    const { data: users, error: usersError } = await supabase
+      .from("profiles")
+      .select("id, name, email, role, created_at")
+      .order("created_at", { ascending: false });
+
+    if (usersError || !users) {
+      return NextResponse.json({ message: "Internal Server Error" }, { status: 500 });
+    }
+
     return NextResponse.json({users}, {status: 200});
-  } catch (error) {
+  } catch {
     return NextResponse.json({message: "Internal Server Error"}, {status: 500});
   }
 }

@@ -1,20 +1,51 @@
 import { NextResponse } from "next/server";
-import { connectDB } from "@/lib/db";
-import { User } from "@/models/User";
+import { supabaseServer } from "@/lib/supabaseServer";
 
-export async function GET(req: Request) {
+export async function GET() {
   try {
-    await connectDB();
+    const supabase = await supabaseServer();
 
-    const userId = req.headers.get('x-user-id');
-    if(!userId) return NextResponse.json({message: "Unauthorized"}, {status: 401});
+    const { data: authData, error: authError } = await supabase.auth.getUser();
 
-    const user = await User.findById(userId).select('-password');
-    if(!user) return NextResponse.json({message: "Unauthorized"}, {status: 401});
+    if (authError || !authData.user)
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
 
-    return NextResponse.json( { user });
+    console.log("checkpoint 1");
 
+    // Fetch profile from database
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("id, name, role, created_at")
+      .eq("id", authData.user.id)
+      .single();
+
+    if (profileError || !profile) {
+      return NextResponse.json(
+        { message: "Profile not found", error: profileError },
+        { status: 404 },
+      );
+    }
+
+    console.log("checkpoint 2");
+
+    // const { data: sessionData } = await supabase.auth.getSession();
+    // console.log("SESSION:", sessionData.session);
+
+    return NextResponse.json(
+      {
+        user: {
+          id: authData.user.id,
+          email: authData.user.email,
+          name: profile.name,
+          role: profile.role,
+        },
+      },
+      { status: 200 },
+    );
   } catch (error) {
-    return NextResponse.json({ message: 'Unauthorized', error}, {status: 401});
+    return NextResponse.json(
+      { message: "Unauthorized", error },
+      { status: 401 },
+    );
   }
 }

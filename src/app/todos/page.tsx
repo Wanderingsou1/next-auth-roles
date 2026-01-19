@@ -19,14 +19,14 @@ type MeUser = {
 };
 
 export type Todo = {
-  _id: string;
+  id: string;
   userId: string;
   name: string;
   description?: string;
   status: "pending" | "in_progress" | "done";
   priority: "low" | "medium" | "high";
-  createdAt: string;
-  updatedAt: string;
+  created_at: string;
+  updated_at: string;
 };
 
 export default function TodosPage() {
