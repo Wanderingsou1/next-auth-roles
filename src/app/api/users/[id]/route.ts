@@ -12,7 +12,7 @@ export async function PUT(
     // Get logged in user
     const { data: authData, error: authError } = await supabase.auth.getUser();
     if (authError || !authData.user)
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({message: "unauthorized"}, {status: 401})
 
     // Only update own profile
     console.log(authData.user.id);
