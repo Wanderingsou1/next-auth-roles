@@ -3,7 +3,7 @@ import { supabaseServer } from "@/lib/supabaseServer";
 
 export async function POST(req: Request) {
   try {
-    const supabase = supabaseServer();
+    const supabase = await supabaseServer();
 
     const { email, password } = await req.json();
 
@@ -14,9 +14,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const { data, error } = await (
-      await supabase
-    ).auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error)
       return NextResponse.json({ message: error.message }, { status: 400 });
