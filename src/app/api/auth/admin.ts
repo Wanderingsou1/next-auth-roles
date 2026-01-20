@@ -1,33 +1,39 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { connectDB } from "@/lib/db";
-import { verifyToken } from "@/lib/jwt";
-import { User } from "@/models/User";
+import { supabaseServer } from "@/lib/supabaseServer";
 
 export async function GET() {
   try {
-    const cookieStore = cookies();
-    const token= (await cookieStore).get("token")?.value;
-
-    if(!token) {
-      return NextResponse.json({message: "Unauthorized"}, {status: 401});
+    const supabase = await supabaseServer();
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError || !authData.user) {
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
-    const decoded = verifyToken(token);
+    const { data: user, error: userError } = await supabase
+      .from("profiles")
+      .select("id, role")
+      .eq("id", authData.user.id)
+      .single();
 
-    if(typeof decoded === "string" || !decoded?.id) {
-      return NextResponse.json({message: "Unauthorized"}, {status: 401});
+    if (userError || !user) {
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
     }
 
-    if(decoded.role !== "admin") {
+    if(user.role !== "admin" && user.role !== "superadmin") {
       return NextResponse.json({message: "Forbidden"}, {status: 403});
     }
 
-    await connectDB();
+    const { data: users, error: usersError } = await supabase
+      .from("profiles")
+      .select("id, name, email, role, created_at")
+      .order("created_at", { ascending: false });
 
-    const users = await User.find().select("-password");
+    if (usersError || !users) {
+      return NextResponse.json({ message: "Internal Server Error" }, { status: 500 });
+    }
+
     return NextResponse.json({users}, {status: 200});
-  } catch (error) {
+  } catch {
     return NextResponse.json({message: "Internal Server Error"}, {status: 500});
   }
 }

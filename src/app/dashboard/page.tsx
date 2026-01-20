@@ -12,11 +12,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { AlertDialogDescription } from "@radix-ui/react-alert-dialog";
 
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
 interface User {
-  _id: string;
+  id: string;
   name: string;
   email: string;
-  role: "admin" | "user";
+  role: "admin" | "user" | "superadmin";
   password?: string;
 }
 
@@ -49,7 +51,7 @@ export default function DashboardPage() {
 
 
   const fetchUsers = async () => {
-    const res = await fetch("/api/users");
+    const res = await fetch("/api/users", { credentials: "include" });
 
     console.log("Fetch users response:", res);
 
@@ -59,27 +61,12 @@ export default function DashboardPage() {
     } 
   };
 
-  // useEffect(() => {
-  //   const init = async () => {
-  //     setLoading(true);
-  //     await fetchMe();
-  //     setLoading(false);
-  //   };
-  //   init();
-  // }, []);
-  
-  // useEffect(() => {
-  //   if(user?.role === "admin") {
-  //     fetchUsers();
-  //   }
-  // }, [user]);
-
   useEffect(() => {
     const init = async () => {
       setLoading(true);
       const currentUser = await fetchMe();
 
-      if(currentUser?.role === "admin") {
+      if(currentUser?.role === "admin" || currentUser?.role === "superadmin") {
         await fetchUsers();
       }
 
@@ -96,10 +83,14 @@ export default function DashboardPage() {
 
   const handleUpdateProfile = async () => {
     try {
-      const res = await fetch(`/api/users/${user?._id}`, {
+      const body = {name, 
+      email,
+      ...(password.trim() ? {password} : {})};
+      const res = await fetch(`/api/users/${user?.id}`, {
         method: "PUT",
         headers: { "Content-type": "application/json"},
-        body: JSON.stringify({ name, email, password }),
+        credentials: "include",
+        body: JSON.stringify(body),
       })
 
       const data = await res.json();
@@ -132,6 +123,25 @@ export default function DashboardPage() {
     fetchUsers();
   }
 
+  const handleChangeRole = async(id: string, role: "admin" | "user") => {
+    const res = await fetch(`/api/users/${id}/role`, {
+      method: "PUT",
+      headers: { "Content-type": "application/json"},
+      body: JSON.stringify({ role }),
+      credentials: "include",
+    })
+
+    const data = await res.json();
+
+    if(!res.ok) {
+      alert(data.message || "Role update failed");
+      return;
+    }
+
+    alert("User role updated successfully ✅");
+    fetchUsers();
+  }
+
 
   if(loading) return <p className="p-6">Loading...</p>;
   if(!user) return null;
@@ -144,7 +154,13 @@ export default function DashboardPage() {
     {/* Header */}
     <div className="flex items-center justify-between">
       <h1 className="text-2xl font-bold">Dashboard</h1>
-      <Button variant="destructive" onClick={handleLogout}>Logout</Button>
+      <div className="flex items-center gap-2">
+
+        {(user.role === "user") && (
+        <Button variant="outline" onClick={() => router.push("/todos")}>Todos</Button>)}
+
+        <Button variant="destructive" onClick={handleLogout}>Logout</Button>
+      </div>
     </div>
 
     {/* User Info */}
@@ -182,7 +198,7 @@ export default function DashboardPage() {
     </Card>
 
     {/* Admin Panel */}
-    {user.role === "admin" && (
+    {(user.role === "admin" || user.role === "superadmin") && (
       <Card>
         <CardHeader>
           <CardTitle>Admin Panel - Users</CardTitle>
@@ -195,17 +211,58 @@ export default function DashboardPage() {
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Role</TableHead>
+                {user.role === "superadmin" && (
+                  <TableHead>Role Action</TableHead>
+                )}
+                <TableHead>Todos</TableHead>
                 <TableHead className="text-right">Action</TableHead>
               </TableRow>
             </TableHeader>
 
             <TableBody>
-              {users.map((u) => (
-                <TableRow key={u._id}>
+              {users.map((u) => {
+
+                const canDelete = user.role === "superadmin" ? u.id !== user.id : u.role === "user";
+
+                return (
+                <TableRow key={u.id}>
                   <TableCell>{u.name}</TableCell>
                   <TableCell>{u.email}</TableCell>
                   <TableCell>{u.role}</TableCell>
+                  {user.role === "superadmin" && (
+                    <TableCell>
+                      {u.role !== "superadmin" && u.id !== user.id ? (
+                        <Select
+                          value={u.role}
+                          onValueChange={(value) => handleChangeRole(u.id, value as "user" | "admin")} >
+                          <SelectTrigger className="w-[160px]">
+                            <SelectValue placeholder="Change role" />
+                          </SelectTrigger>
+
+                          <SelectContent>
+                            <SelectItem value="user">User</SelectItem>
+                            <SelectItem value="admin">Admin</SelectItem>
+                          </SelectContent>
+                          </Select>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">Not Allowed</span>
+                      )}
+                    </TableCell>
+                  )}
+                  <TableCell>
+                    {u.role === "user" ? (
+                    <Button variant="outline" size="sm" 
+                      onClick={() => router.push(`/admin/todos?userId=${u.id}`)}>
+                        View Todos
+                      </Button>
+                    ) : (
+                      <Button variant="outline" size="sm" disabled>
+                        View Todos
+                      </Button>
+                    )}
+                  </TableCell>
                   <TableCell className="text-right">
+                    {canDelete ? (
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <Button variant="destructive" size="sm">Delete</Button>
@@ -221,15 +278,18 @@ export default function DashboardPage() {
 
                         <AlertDialogFooter>
                           <AlertDialogCancel>Cancel</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => handleDeleteUser(u._id)} className="bg-red-600 hover:bg-red-700">
+                          <AlertDialogAction onClick={() => handleDeleteUser(u.id)} className="bg-red-600 hover:bg-red-700">
                             Delete
                           </AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
                     </AlertDialog>
+                    ) : (
+                      <Button variant="outline" size="sm" disabled>Delete</Button>
+                    )}
                   </TableCell>
                 </TableRow>
-              ))}
+              )})}
             </TableBody>
           </Table>
         </CardContent>

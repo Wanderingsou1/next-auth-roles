@@ -1,91 +1,110 @@
 import { NextResponse } from "next/server";
-import { connectDB } from "@/lib/db";
-import { User } from "@/models/User";
-import { cookies } from "next/headers";
-import { verifyToken } from "@/lib/jwt";
-import bcrypt from "bcryptjs";
+import { supabaseServer } from "@/lib/supabaseServer";
 
 export async function PUT(
   req: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
-  const { id } = await params;
   try {
-    await connectDB();
-    const cookieStore = cookies();
-    const token = (await cookieStore).get("token")?.value;
+    const { id } = await params;
+    const supabase = await supabaseServer();
 
-    if (!token) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    // Get logged in user
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    if (authError || !authData.user)
+      return NextResponse.json({message: "unauthorized"}, {status: 401})
+
+    // Only update own profile
+    console.log(authData.user.id);
+    console.log(id);
+    if (authData.user.id !== id)
+      return NextResponse.json({ message: "unauthorized" }, { status: 401 });
+
+    const { name, email, password } = await req.json();
+
+    // Update auth email, password if provided
+    if (email || password) {
+      const { error } = await supabase.auth.updateUser({ email, password });
+
+      if (error)
+        return NextResponse.json({ message: error.message }, { status: 400 });
     }
 
-    const decoded = verifyToken(token);
+    // Update name is the profile
+    if (name) {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ name })
+        .eq("id", id);
 
-    if (typeof decoded === "string" || !decoded || !("id" in decoded)) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+      if (error)
+        return NextResponse.json({ message: error.message }, { status: 400 });
     }
 
-    if (decoded.id !== id) {
-      return NextResponse.json({ message: "Forbidden", decoded, id}, { status: 403 });
-    }
-
-    const body = await req.json();
-
-    interface UpdateData {
-      name?: string;
-      email?: string;
-      password?: string;
-    }
-
-    const updateData: UpdateData = { ...body };
-
-    if (typeof updateData.password === "string" && updateData.password.trim() !== "") {
-      updateData.password = await bcrypt.hash(updateData.password, 10);
-    } else {
-      delete updateData.password;
-    }
-
-    const updatedUser = await User.findByIdAndUpdate(id, updateData, {
-      new: true,
-    }).select("-password");
-
-    return NextResponse.json({
-      message: "User updated successfully",
-      user: updatedUser,
-    });
-
-  } catch (error) {
-    return NextResponse.json(
-      { message: "Server error", error },
-      { status: 500 }
-    );
+    return NextResponse.json({ message: "Profile Updated Successfully " });
+  } catch {
+    return NextResponse.json({ message: "Server error" }, { status: 500 });
   }
 }
 
-export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
   try {
-    await connectDB();
-    const cookieStore = cookies();
-    const token = (await cookieStore).get("token")?.value;
-    if (!token) {
-      return NextResponse.json({message: "Unauthorized"}, {status: 401});
+    const { id } = await params;
+    const supabase = await supabaseServer();
+
+    // Auth User
+    const { data: authData } = await supabase.auth.getUser();
+    if (!authData.user)
+      NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+
+    // Fetch Requester Role
+    const { data: me } = await supabase
+      .from("profile")
+      .select("role")
+      .eq("id", authData.user?.id)
+      .single();
+
+    // users cannot delete users
+    if (!me || (me.role !== "admin" && me.role !== "superadmin")) {
+      return NextResponse.json({ message: "Forbidden" }, { status: 403 });
     }
 
-    const decoded = verifyToken(token);
+    // Fetch target user role
 
-    if(typeof decoded === "string" || !decoded || !("id" in decoded)) {
-      return NextResponse.json({ message: "Unauthorized"}, {status: 401});
+    const { data: target } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", id)
+      .single();
+
+    if (!target)
+      return NextResponse.json({ message: "User not found" }, { status: 404 });
+
+    // admin can only delete users with role 'user'
+    if (me.role === "admin" && target.role !== "user") {
+      return NextResponse.json(
+        { message: "Admin can only delete users" },
+        { status: 403 },
+      );
     }
 
-    if(decoded.role !== 'admin') {
-      return NextResponse.json({ message: "Forbidden"}, {status: 403});
+    // superadmin cannot delete self
+    if (me.role === "superadmin" && id === authData.user?.id) {
+      return NextResponse.json(
+        { message: "Superadmin cannot delete self" },
+        { status: 403 },
+      );
     }
 
-    await User.findByIdAndDelete((await params).id);
+    const { error } = await supabase.auth.admin.deleteUser(id);
+    if (error)
+      return NextResponse.json({ message: error.message }, { status: 400 });
 
-    return NextResponse.json({message: "User deleted successfully"});
-
-  } catch (error) {
-    return NextResponse.json({ message: "Server error", error}, { status: 500});
+    return NextResponse.json({ message: "User deleted successfully" });
+  } catch {
+    return NextResponse.json({ message: "Server error" }, { status: 500 });
   }
 }

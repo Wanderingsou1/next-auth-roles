@@ -1,37 +1,32 @@
 import { NextResponse } from "next/server";
-import {connectDB} from "@/lib/db";
-import { User } from "@/models/User";
-import bcrypt from "bcryptjs";
-import { signToken } from "@/lib/jwt";
+import { supabaseServer } from "@/lib/supabaseServer";
 
 export async function POST(req: Request) {
   try {
-    await connectDB();
-    const {email, password} = await req.json();
+    const supabase = await supabaseServer();
 
-    const user = await User.findOne({ email});
-    if(!user) {
-      return NextResponse.json({ message: 'Invalid credentials'}, { status: 401});
+    const { email, password } = await req.json();
+
+    if (!email || !password) {
+      return NextResponse.json(
+        { message: "All fields are required" },
+        { status: 400 },
+      );
     }
 
-    const isMatch = await bcrypt.compare(password, user.password);
-    if(!isMatch) {
-      return NextResponse.json({ message: 'Invalid credentials'}, { status: 401});
-    }
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
-    const token = signToken({ id: user._id, role: user.role});
+    if (error)
+      return NextResponse.json({ message: error.message }, { status: 400 });
 
-    const res = NextResponse.json({ message: 'Login successful'});
-    res.cookies.set('token', token, {
-      httpOnly: true,
-      secure: false,
-      path: '/',
-    });
-
-    return res;
-
-
+    return NextResponse.json(
+      { message: "User logged in successfully", user: data.user },
+      { status: 200 },
+    );
   } catch (error) {
-  return NextResponse.json({ message: 'Server error', error}, {status: 500});
+    return NextResponse.json(
+      { message: "Server error", error },
+      { status: 500 },
+    );
   }
 }
