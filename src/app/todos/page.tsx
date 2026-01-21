@@ -130,7 +130,15 @@ export default function TodosPage() {
     <div className="min-h-screen bg-background p-6 space-y-6">
       {/* Top bar */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Todos</h1>
+        {/* <h1 className="text-2xl font-bold">Todos</h1> */}
+        <div className="space-y-1">
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Welcome back!
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Here’s a list of your tasks.
+          </p>
+        </div>
 
         <div className="flex items-center gap-2">
           {me.role === "user" && (

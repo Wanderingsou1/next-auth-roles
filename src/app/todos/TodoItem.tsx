@@ -2,22 +2,32 @@
 
 import { useState } from "react";
 import type { Todo } from "./page";
+import { useRouter } from "next/navigation";
+import EditTodoDialog from "./EditTodoDialog";
+import ViewTodoDialog from "./ViewTodoDialog";
 
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-
+import { TableRow, TableCell } from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+
+import { MoreHorizontal } from "lucide-react";
+import TodoForm from "./TodoForm";
+import { set } from "mongoose";
 
 type Role = "user" | "admin" | "superadmin";
 
@@ -29,41 +39,25 @@ type MeUser = {
 export default function TodoItem({
   me,
   todo,
+  checked,
+  onCheckedChange,
   onChanged,
 }: {
   me: MeUser;
   todo: Todo;
+  checked: boolean;
+  onCheckedChange: (checked: boolean) => void;
   onChanged: () => void;
 }) {
-  const [updating, setUpdating] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [viewOpen, setViewOpen] = useState(false);
 
   const isOwner = me.id === todo.user_id;
 
-  const canEdit =
-    me.role === "user" && isOwner;
+  const canEdit = me.role === "user" && isOwner;
+  const canDelete = (me.role === "user" && isOwner) || me.role === "superadmin";
 
-  const canDelete =
-    (me.role === "user" && isOwner) ||
-    me.role === "superadmin";
-
-  const updateTodo = async (updates: Partial<Todo>) => {
-    try {
-      setUpdating(true);
-
-      const res = await fetch(`/api/todos/${todo.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(updates),
-      });
-
-      if (!res.ok) return;
-
-      onChanged();
-    } finally {
-      setUpdating(false);
-    }
-  };
+  const router = useRouter();
 
   const deleteTodo = async () => {
     const res = await fetch(`/api/todos/${todo.id}`, {
@@ -77,85 +71,83 @@ export default function TodoItem({
   };
 
   return (
-    <tr className="border-b hover:bg-muted/50">
-      {/* Task Key */}
-      <td className="px-3 py-2 font-mono text-xs text-muted-foreground">
-        {todo.task_key}
-      </td>
+    <>
+      <TableRow className={`hover:bg-muted/50 ${checked ? "bg-muted/60" : ""}`}>
+        {/* Checkbox */}
+        <TableCell>
+          <Checkbox
+            checked={checked}
+            onCheckedChange={(v) => onCheckedChange(Boolean(v))}
+          />
+        </TableCell>
 
-      {/* Name */}
-      <td className="px-3 py-2">
-        {todo.name}
-      </td>
-
-      {/* Status */}
-      <td className="px-3 py-2">
-        <Select
-          value={todo.status}
-          onValueChange={(v) =>
-            updateTodo({ status: v as Todo["status"] })
-          }
-          disabled={!canEdit || updating}
+        {/* Task ID */}
+        <TableCell
+          className="font-mono text-xs text-muted-foreground"
+          onClick={() => setViewOpen(true)}
         >
-          <SelectTrigger className="w-[140px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="pending">Pending</SelectItem>
-            <SelectItem value="in_progress">In Progress</SelectItem>
-            <SelectItem value="done">Done</SelectItem>
-          </SelectContent>
-        </Select>
-      </td>
+          {todo.task_key}
+        </TableCell>
 
-      {/* Priority */}
-      <td className="px-3 py-2">
-        <Select
-          value={todo.priority}
-          onValueChange={(v) =>
-            updateTodo({ priority: v as Todo["priority"] })
-          }
-          disabled={!canEdit || updating}
-        >
-          <SelectTrigger className="w-[140px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="low">Low</SelectItem>
-            <SelectItem value="medium">Medium</SelectItem>
-            <SelectItem value="high">High</SelectItem>
-          </SelectContent>
-        </Select>
-      </td>
+        {/* Title */}
+        <TableCell className="font-medium" onClick={() => setViewOpen(true)}>
+          {todo.name}
+        </TableCell>
 
-      {/* Actions */}
-      <td className="px-3 py-2 text-right">
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-            >
-              ⋯
-            </Button>
-          </DropdownMenuTrigger>
+        {/* Status */}
+        <TableCell>
+          <Badge variant="outline">{todo.status.replace("_", " ")}</Badge>
+        </TableCell>
 
-          <DropdownMenuContent align="end">
-            {canDelete ? (
-              <DropdownMenuItem
-                className="text-destructive"
-                onClick={deleteTodo}
-              >
-                Delete
+        {/* Priority */}
+        <TableCell>
+          <Badge variant="secondary">{todo.priority}</Badge>
+        </TableCell>
+
+        {/* Actions */}
+        <TableCell className="text-right">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setViewOpen(true)}>
+                View
               </DropdownMenuItem>
-            ) : (
-              <DropdownMenuItem disabled>
-                Read only
-              </DropdownMenuItem>
-            )}
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </td>
-    </tr>
+
+              {canEdit && (
+                <DropdownMenuItem onClick={() => setEditOpen(true)}>
+                  Edit
+                </DropdownMenuItem>
+              )}
+
+              {canDelete && (
+                <DropdownMenuItem
+                  className="text-destructive"
+                  onClick={deleteTodo}
+                >
+                  Delete
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </TableCell>
+      </TableRow>
+
+      {/* Edit dialog */}
+      {canEdit && (
+        <EditTodoDialog
+          open={editOpen}
+          onOpenChange={setEditOpen}
+          todo={todo}
+          onSuccess={onChanged}
+        />
+      )}
+
+      <ViewTodoDialog open={viewOpen} onOpenChange={setViewOpen} todo={todo} />
+    </>
   );
 }

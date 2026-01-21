@@ -1,5 +1,17 @@
 "use client";
 
+import { useState } from "react";
+
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Checkbox } from "@/components/ui/checkbox";
+
 import TodoItem from "./TodoItem";
 import type { Todo } from "./page";
 
@@ -19,6 +31,26 @@ export default function TodoList({
   todos: Todo[];
   onChanged: () => void;
 }) {
+  // selected todo ids
+  const [selected, setSelected] = useState<string[]>([]);
+
+  const allSelected =
+    todos.length > 0 && selected.length === todos.length;
+
+  const toggleAll = (checked: boolean) => {
+    if (checked) {
+      setSelected(todos.map((t) => t.id));
+    } else {
+      setSelected([]);
+    }
+  };
+
+  const toggleOne = (id: string, checked: boolean) => {
+    setSelected((prev) =>
+      checked ? [...prev, id] : prev.filter((x) => x !== id)
+    );
+  };
+
   if (todos.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
@@ -28,39 +60,58 @@ export default function TodoList({
   }
 
   return (
-    <div className="w-full overflow-x-auto">
-      <table className="w-full border rounded-md text-sm">
-        <thead>
-          <tr className="border-b bg-muted/50">
-            <th className="px-3 py-2 text-left font-medium">
-              Task
-            </th>
-            <th className="px-3 py-2 text-left font-medium">
-              Name
-            </th>
-            <th className="px-3 py-2 text-left font-medium">
-              Status
-            </th>
-            <th className="px-3 py-2 text-left font-medium">
-              Priority
-            </th>
-            <th className="px-3 py-2 text-right font-medium">
-              Actions
-            </th>
-          </tr>
-        </thead>
+    <div className="rounded-md border">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            {/* Select all */}
+            <TableHead className="w-10">
+              <Checkbox
+                checked={allSelected}
+                onCheckedChange={(v) => toggleAll(Boolean(v))}
+              />
+            </TableHead>
 
-        <tbody>
+            {/* Task ID */}
+            <TableHead className="w-[120px]">
+              Task
+            </TableHead>
+
+            {/* Title */}
+            <TableHead>
+              Title
+            </TableHead>
+
+            {/* Status */}
+            <TableHead>
+              Status
+            </TableHead>
+
+            {/* Priority */}
+            <TableHead>
+              Priority
+            </TableHead>
+
+            {/* Actions */}
+            <TableHead className="w-10 text-right" />
+          </TableRow>
+        </TableHeader>
+
+        <TableBody>
           {todos.map((todo) => (
             <TodoItem
               key={todo.id}
               me={me}
               todo={todo}
+              checked={selected.includes(todo.id)}
+              onCheckedChange={(checked: boolean) =>
+                toggleOne(todo.id, checked)
+              }
               onChanged={onChanged}
             />
           ))}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   );
 }
