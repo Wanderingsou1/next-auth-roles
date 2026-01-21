@@ -164,64 +164,64 @@ export async function DELETE(
 
 // Get a single todo
 
-export async function GET(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const { id } = await params;
-    const supabase = await supabaseServer();
+// export async function GET(
+//   req: Request,
+//   { params }: { params: Promise<{ id: string }> }
+// ) {
+//   try {
+//     const { id } = await params;
+//     const supabase = await supabaseServer();
 
-    // Auth
-    const { data: authData, error: authError } =
-      await supabase.auth.getUser();
+//     // Auth
+//     const { data: authData, error: authError } =
+//       await supabase.auth.getUser();
 
-    if (authError || !authData.user) {
-      return NextResponse.json(
-        { message: "Unauthorized" },
-        { status: 401 }
-      );
-    }
+//     if (authError || !authData.user) {
+//       return NextResponse.json(
+//         { message: "Unauthorized" },
+//         { status: 401 }
+//       );
+//     }
 
-    // Profile
-    const { data: me } = await supabase
-      .from("profiles")
-      .select("id, role")
-      .eq("id", authData.user.id)
-      .single();
+//     // Profile
+//     const { data: me } = await supabase
+//       .from("profiles")
+//       .select("id, role")
+//       .eq("id", authData.user.id)
+//       .single();
 
-    if (!me) {
-      return NextResponse.json(
-        { message: "Unauthorized" },
-        { status: 401 }
-      );
-    }
+//     if (!me) {
+//       return NextResponse.json(
+//         { message: "Unauthorized" },
+//         { status: 401 }
+//       );
+//     }
 
-    let query = supabase
-      .from("todos")
-      .select("*")
-      .eq("id", id);
+//     let query = supabase
+//       .from("todos")
+//       .select("*")
+//       .eq("id", id);
 
-    // user can only see own todo
-    if (me.role === "user") {
-      query = query.eq("user_id", me.id);
-    }
+//     // user can only see own todo
+//     if (me.role === "user") {
+//       query = query.eq("user_id", me.id);
+//     }
 
-    const { data: todo, error } = await query.single();
+//     const { data: todo, error } = await query.single();
 
-    if (error || !todo) {
-      return NextResponse.json(
-        { message: "Todo not found" },
-        { status: 404 }
-      );
-    }
+//     if (error || !todo) {
+//       return NextResponse.json(
+//         { message: "Todo not found" },
+//         { status: 404 }
+//       );
+//     }
 
-    return NextResponse.json({ todo }, { status: 200 });
-  } catch {
-    return NextResponse.json(
-      { message: "Server error" },
-      { status: 500 }
-    );
-  }
-}
+//     return NextResponse.json({ todo }, { status: 200 });
+//   } catch {
+//     return NextResponse.json(
+//       { message: "Server error" },
+//       { status: 500 }
+//     );
+//   }
+// }
 
