@@ -72,7 +72,8 @@ export default function TodoItem({
 
   return (
     <>
-      <TableRow className={`hover:bg-muted/50 ${checked ? "bg-muted/60" : ""}`}>
+      <TableRow className={`hover:bg-muted/50 ${checked ? "bg-muted/60" : ""}`}
+        onClick={() => setViewOpen(true)}>
         {/* Checkbox */}
         <TableCell>
           <Checkbox
@@ -84,13 +85,13 @@ export default function TodoItem({
         {/* Task ID */}
         <TableCell
           className="font-mono text-xs text-muted-foreground"
-          onClick={() => setViewOpen(true)}
+          // onClick={() => setViewOpen(true)}
         >
           {todo.task_key}
         </TableCell>
 
         {/* Title */}
-        <TableCell className="font-medium" onClick={() => setViewOpen(true)}>
+        <TableCell className="font-medium">
           {todo.name}
         </TableCell>
 
