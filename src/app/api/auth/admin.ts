@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseServer";
 
+// GET /api/auth/admin
 export async function GET() {
   try {
     const supabase = await supabaseServer();
@@ -23,6 +24,7 @@ export async function GET() {
       return NextResponse.json({message: "Forbidden"}, {status: 403});
     }
 
+    // Fetch all users (profiles)
     const { data: users, error: usersError } = await supabase
       .from("profiles")
       .select("id, name, email, role, created_at")

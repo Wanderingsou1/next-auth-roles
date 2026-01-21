@@ -31,9 +31,6 @@ export async function PUT(
     }
 
     const body = await req.json();
-
-    console.log(id);
-    console.log(user.id);
  
     // Update only if todo belongs to logged in user
     const { data: todo, error: updateError } = await supabase
@@ -41,22 +38,26 @@ export async function PUT(
       .update({
         status: body.status,
         priority: body.priority,
+        updated_at: new Date(),
       })
       .eq("id", id)
       .eq("user_id", user.id)
       .select("*")
       .single();
 
-    if (updateError || !todo)
-      return NextResponse.json({ message: "Todo not found" }, { status: 500 });
+    if (updateError)
+      return NextResponse.json({ message: updateError?.message }, { status: 404 });
+
+    if (!todo)
+      return NextResponse.json({ message: "Todo not found" }, { status: 404 });
 
     return NextResponse.json(
       { message: "Todo updated successfully", todo },
       { status: 200 },
     );
-  } catch (error) {
+  } catch {
     return NextResponse.json(
-      { message: "Server error", error },
+      { message: "Server error" },
       { status: 500 },
     );
   }
@@ -135,9 +136,9 @@ export async function DELETE(
 
     // admin cannot delete
     return NextResponse.json({ message: "Forbidden" }, { status: 403 });
-  } catch (error) {
+  } catch {
     return NextResponse.json(
-      { message: "Server error", error },
+      { message: "Server error"},
       { status: 500 },
     );
   }

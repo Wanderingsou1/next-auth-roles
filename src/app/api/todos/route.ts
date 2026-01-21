@@ -34,16 +34,20 @@ export async function POST(req: Request) {
       );
     }
 
+    const taskKey = `TASK-${Math.floor(1000 + Math.random() * 9000)}`;
+
     // Insert Todo
     const { data: todo, error: insertError } = await supabase
       .from("todos")
       .insert([
         {
           user_id: user.id,
+          task_key: taskKey,
           name,
           description: description || null,
           status: status || "pending",
           priority: priority || "medium",
+          updated_at: new Date(),
         },
       ])
       .select("*")
@@ -65,7 +69,7 @@ export async function POST(req: Request) {
 }
 
 // Get all todos for the authenticated user
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const supabase = await supabaseServer();
 
@@ -84,20 +88,52 @@ export async function GET() {
     if (userError || !user)
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
 
+    const { searchParams } = new URL(req.url);
+    const search = searchParams.get("search");
+    const status = searchParams.get("status");
+    const priority = searchParams.get("priority");
+    const userIdFilter = searchParams.get("userId");
+
+    // pagination
+    const page = Number(searchParams.get("page") || 1);
+    const limit = Number(searchParams.get("limit") || 10);
+
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
+
+
+
+
     // filter
     let query = supabase
-      .from("todos")
-      .select("*")
-      .order("created_at", { ascending: false });
+    .from("todos")
+    .select("*")
+    .order("updated_at", { ascending: false })
+    .range(from, to);
 
-    // normal users can only see their own todos
     if (user.role === "user") {
       query = query.eq("user_id", user.id);
     }
 
+    if (userIdFilter && user.role !== "user") {
+      query = query.eq("user_id", userIdFilter);
+    }
+
+    if (search) {
+      query = query.ilike("name", `%${search}%`);
+    }
+
+    if (status) {
+      query = query.eq("status", status);
+    }
+
+    if (priority) {
+      query = query.eq("priority", priority);
+    }
+
     
     // admin and superadmin can see all todos
-    const { data: todos, error: todosError } = await query;
+    const { data: todos, count , error: todosError } = await query;
 
     if (todosError)
       return NextResponse.json(
@@ -105,7 +141,7 @@ export async function GET() {
         { status: 500 },
       );
 
-    return NextResponse.json({ todos }, { status: 200 });
+    return NextResponse.json({ todos, page, limit, total: count }, { status: 200 });
   } catch {
     return NextResponse.json({ message: "Server error" }, { status: 500 });
   }

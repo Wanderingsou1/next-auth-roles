@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseServer } from "@/lib/supabaseServer";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export async function PUT(
   req: Request,
@@ -54,6 +55,7 @@ export async function DELETE(
   try {
     const { id } = await params;
     const supabase = await supabaseServer();
+    const supabaseAdminClient = supabaseAdmin;
 
     // Auth User
     const { data: authData } = await supabase.auth.getUser();
@@ -62,14 +64,16 @@ export async function DELETE(
 
     // Fetch Requester Role
     const { data: me } = await supabase
-      .from("profile")
+      .from("profiles")
       .select("role")
       .eq("id", authData.user?.id)
       .single();
 
+    console.log(me);
+
     // users cannot delete users
     if (!me || (me.role !== "admin" && me.role !== "superadmin")) {
-      return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+      return NextResponse.json({ message: "onafoca" }, { status: 403 });
     }
 
     // Fetch target user role
@@ -99,7 +103,7 @@ export async function DELETE(
       );
     }
 
-    const { error } = await supabase.auth.admin.deleteUser(id);
+    const { error } = await supabaseAdminClient.auth.admin.deleteUser(id);
     if (error)
       return NextResponse.json({ message: error.message }, { status: 400 });
 

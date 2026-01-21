@@ -1,22 +1,28 @@
 "use client";
 
 import { useState } from "react";
-
 import type { Todo } from "./page";
 
-import { Card, CardContent } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-
-import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue}
- from "@/components/ui/select";
-
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 type Role = "user" | "admin" | "superadmin";
 
 type MeUser = {
-  _id: string;
+  id: string;
   role: Role;
 };
 
@@ -31,10 +37,14 @@ export default function TodoItem({
 }) {
   const [updating, setUpdating] = useState(false);
 
-  const isOwner = me._id === todo.userId;
-  const canEdit = me.role === "user" && isOwner;
+  const isOwner = me.id === todo.user_id;
+
+  const canEdit =
+    me.role === "user" && isOwner;
+
   const canDelete =
-    (me.role === "user" && isOwner) || me.role === "superadmin";
+    (me.role === "user" && isOwner) ||
+    me.role === "superadmin";
 
   const updateTodo = async (updates: Partial<Todo>) => {
     try {
@@ -47,124 +57,105 @@ export default function TodoItem({
         body: JSON.stringify(updates),
       });
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        alert(data.message || "Update failed");
-        return;
-      }
+      if (!res.ok) return;
 
       onChanged();
-    } catch {
-      alert("Something went wrong");
     } finally {
       setUpdating(false);
     }
   };
 
   const deleteTodo = async () => {
-    try {
-      const res = await fetch(`/api/todos/${todo.id}`, {
-        method: "DELETE",
-        credentials: "include",
-      });
+    const res = await fetch(`/api/todos/${todo.id}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        alert(data.message || "Delete failed");
-        return;
-      }
-
+    if (res.ok) {
       onChanged();
-    } catch {
-      alert("Something went wrong");
     }
   };
 
   return (
-    <Card>
-      <CardContent className="p-4 space-y-2">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h3 className="font-semibold">{todo.name}</h3>
-            {todo.description ? (
-              <p className="text-sm text-muted-foreground">{todo.description}</p>
-            ) : null}
-          </div>
+    <tr className="border-b hover:bg-muted/50">
+      {/* Task Key */}
+      <td className="px-3 py-2 font-mono text-xs text-muted-foreground">
+        {todo.task_key}
+      </td>
 
-          <Badge variant="secondary">{todo.priority}</Badge>
-        </div>
+      {/* Name */}
+      <td className="px-3 py-2">
+        {todo.name}
+      </td>
 
-        <div className="flex flex-wrap gap-2 items-center justify-between">
-          <div className="flex gap-2">
-            <Select
-              value={todo.status}
-              onValueChange={(v: string) => updateTodo({ status: v as 'pending' | 'in_progress' | 'done' })}
-              disabled={!canEdit || updating}
+      {/* Status */}
+      <td className="px-3 py-2">
+        <Select
+          value={todo.status}
+          onValueChange={(v) =>
+            updateTodo({ status: v as Todo["status"] })
+          }
+          disabled={!canEdit || updating}
+        >
+          <SelectTrigger className="w-[140px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="pending">Pending</SelectItem>
+            <SelectItem value="in_progress">In Progress</SelectItem>
+            <SelectItem value="done">Done</SelectItem>
+          </SelectContent>
+        </Select>
+      </td>
+
+      {/* Priority */}
+      <td className="px-3 py-2">
+        <Select
+          value={todo.priority}
+          onValueChange={(v) =>
+            updateTodo({ priority: v as Todo["priority"] })
+          }
+          disabled={!canEdit || updating}
+        >
+          <SelectTrigger className="w-[140px]">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="low">Low</SelectItem>
+            <SelectItem value="medium">Medium</SelectItem>
+            <SelectItem value="high">High</SelectItem>
+          </SelectContent>
+        </Select>
+      </td>
+
+      {/* Actions */}
+      <td className="px-3 py-2 text-right">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
             >
-              <SelectTrigger className="w-[160px]">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="pending">Pending</SelectItem>
-                <SelectItem value="in_progress">In Progress</SelectItem>
-                <SelectItem value="done">Done</SelectItem>
-              </SelectContent>
-            </Select>
-
-            <Select
-              value={todo.priority}
-              onValueChange={(v: string) => updateTodo({ priority: v as 'low' | 'medium' | 'high' })}
-              disabled={!canEdit || updating}
-            >
-              <SelectTrigger className="w-[160px]">
-                <SelectValue placeholder="Priority" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="low">Low</SelectItem>
-                <SelectItem value="medium">Medium</SelectItem>
-                <SelectItem value="high">High</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {canDelete ? (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="destructive" size="sm">
-                  Delete
-                </Button>
-              </AlertDialogTrigger>
-
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Delete this todo?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    This action cannot be undone.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={deleteTodo}>
-                    Delete
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          ) : (
-            <Button variant="secondary" size="sm" disabled>
-              Read Only
+              ⋯
             </Button>
-          )}
-        </div>
+          </DropdownMenuTrigger>
 
-        <p className="text-xs text-muted-foreground">
-          Created: {new Date(todo.created_at).toLocaleString()} | Updated:{" "}
-          {new Date(todo.updated_at).toLocaleString()}
-        </p>
-      </CardContent>
-    </Card>
+          <DropdownMenuContent align="end">
+            {canDelete ? (
+              <DropdownMenuItem
+                className="text-destructive"
+                onClick={deleteTodo}
+              >
+                Delete
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem disabled>
+                Read only
+              </DropdownMenuItem>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </td>
+    </tr>
   );
 }
