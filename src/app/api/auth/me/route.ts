@@ -26,8 +26,6 @@ export async function GET() {
       );
     }
 
-    console.log("checkpoint 2");
-
     // const { data: sessionData } = await supabase.auth.getSession();
     // console.log("SESSION:", sessionData.session);
 

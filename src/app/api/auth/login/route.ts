@@ -20,7 +20,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ message: error.message }, { status: 400 });
 
     return NextResponse.json(
-      { message: "User logged in successfully", user: data.user },
+      { message: "User logged in successfully"},
       { status: 200 },
     );
   } catch (error) {

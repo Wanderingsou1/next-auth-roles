@@ -37,8 +37,6 @@ export async function GET() {
         { status: 500 },
       );
 
-    console.log(users);
-
     return NextResponse.json({ users }, { status: 200 });
   } catch {
     return NextResponse.json(

@@ -9,7 +9,7 @@ export async function supabaseServer() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        async getAll() {
+        getAll() {
           return cookieStore.getAll();
         },
         setAll(cookiesToSet) {
