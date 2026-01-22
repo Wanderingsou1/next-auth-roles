@@ -196,6 +196,13 @@ export default function DashboardPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Dashboard</h1>
         <div className="flex items-center gap-2">
+          {(user.role === "user" || user.role === "superadmin") && (
+            <Button variant="outline" onClick={() => router.push("/documents")}>
+              Documents
+            </Button>
+          )}
+
+
           {user.role === "user" && (
             <Button variant="outline" onClick={() => router.push("/todos")}>
               Todos
