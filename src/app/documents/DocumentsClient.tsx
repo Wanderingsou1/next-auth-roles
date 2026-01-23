@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import DocumentList from "./DocumentList";
 import UploadDocumentDialog from "./UploadDocumentDialog";
 import ViewDocumentDialog from "./ViewDocumentDialog";
+import ViewAiSummaryDialog from "./ViewAiSummaryDialog";
 
 type Role = "user" | "superadmin";
 
@@ -23,6 +24,11 @@ export interface Document {
   storage_path: string;
   extracted_text: string;
   extracted_html: string;
+
+  summary?: string | null;
+  keywords?: string[] | null;
+  ai_status?: "pending" | "processing" | "ready" | "failed";
+
   created_at: string;
 }
 
@@ -38,6 +44,7 @@ export default function DocumentsClient({ role }: Props) {
 
   const [uploadOpen, setUploadOpen] = useState(false);
   const [viewDoc, setViewDoc] = useState<Document | null>(null);
+  const [viewAiDoc, setViewAiDoc] = useState<Document | null>(null);
 
   const fetchDocuments = async () => {
     setLoading(true);
@@ -85,9 +92,7 @@ export default function DocumentsClient({ role }: Props) {
 
         <div className="flex gap-2">
           {role === "user" && (
-            <Button onClick={() => setUploadOpen(true)}>
-              Upload Document
-            </Button>
+            <Button onClick={() => setUploadOpen(true)}>Upload Document</Button>
           )}
 
           <Button variant="outline" onClick={() => router.push("/dashboard")}>
@@ -110,6 +115,7 @@ export default function DocumentsClient({ role }: Props) {
               documents={documents}
               role={role}
               onView={setViewDoc}
+              onViewAi={setViewAiDoc} 
               onDelete={handleDelete}
             />
           )}
@@ -131,6 +137,15 @@ export default function DocumentsClient({ role }: Props) {
           document={viewDoc}
           open={!!viewDoc}
           onOpenChange={() => setViewDoc(null)}
+        />
+      )}
+
+      {/* View AI Summary Dialog */}
+      {viewAiDoc && (
+        <ViewAiSummaryDialog
+          document={viewAiDoc}
+          open={!!viewAiDoc}
+          onOpenChange={() => setViewAiDoc(null)}
         />
       )}
     </div>

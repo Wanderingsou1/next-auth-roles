@@ -17,6 +17,7 @@ interface Props {
   documents: Document[];
   role: Role;
   onView: (doc: Document) => void;
+  onViewAi: (doc: Document) => void;
   onDelete: (id: string) => void;
 }
 
@@ -24,6 +25,7 @@ export default function DocumentList({
   documents,
   role,
   onView,
+  onViewAi,
   onDelete,
 }: Props) {
   if (documents.length === 0) {
@@ -53,6 +55,7 @@ export default function DocumentList({
             document={doc}
             role={role}
             onView={onView}
+            onViewAi={onViewAi}
             onDelete={onDelete}
           />
         ))}

@@ -3,6 +3,7 @@ import { supabaseServer } from "@/lib/supabaseServer";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { extractDocumentContent } from "@/lib/document-extractor";
 import { uploadFileToStorage } from "@/lib/storage";
+import { generateSummaryAndKeywords } from "@/lib/ai/summary";
 
 type Role = "user" | "admin" | "superadmin";
 
@@ -16,14 +17,14 @@ async function getMe() {
   const { data, error } = await supabase.auth.getUser();
 
   if (error || !data?.user) return null;
-  
+
   const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("id, role")
     .eq("id", data.user.id)
     .single();
 
-  if(profileError || !profile) return null;
+  if (profileError || !profile) return null;
 
   return {
     id: data.user.id,
@@ -61,41 +62,51 @@ export async function GET(req: Request) {
       .order("created_at", { ascending: false })
       .range(from, to);
 
-    if(me.role === "user") query = query.eq("user_id", me.id);
+    if (me.role === "user") query = query.eq("user_id", me.id);
 
     const { data, count, error } = await query;
 
-    if(error) return NextResponse.json({message: error.message}, {status: 400});
+    if (error)
+      return NextResponse.json({ message: error.message }, { status: 400 });
 
-    return NextResponse.json({ 
-      data: data ?? [],
-      pagination: {page, limit, total: count ?? 0},
-     }, { status: 200 });
+    return NextResponse.json(
+      {
+        data: data ?? [],
+        pagination: { page, limit, total: count ?? 0 },
+      },
+      { status: 200 },
+    );
   } catch (err) {
-    return NextResponse.json({ message: err || "Server Error" }, { status: 500 });
+    return NextResponse.json(
+      { message: err || "Server Error" },
+      { status: 500 },
+    );
   }
 }
-
 
 // POST /api/documents
 
 export async function POST(req: Request) {
   try {
     const me = await getMe();
-    if(!me) return NextResponse.json({message: "Unauthorized"}, {status: 401});
+    if (!me) {
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+    }
 
-    if(me.role !== "user") return NextResponse.json({message: "Forbidden"}, {status: 403});
+    if (me.role !== "user") {
+      return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+    }
 
-    console.log("checkpoint 1");
     // Upload file
     const formData = await req.formData();
     const file = formData.get("file");
 
-    if(!file || !(file instanceof File)) {
-      return NextResponse.json({message: "file is required"}, {status: 400});
+    if (!file || !(file instanceof File)) {
+      return NextResponse.json(
+        { message: "file is required" },
+        { status: 400 },
+      );
     }
-
-    console.log("checkpoint 2");
 
     // Allowed file types
     const allowedTypes = [
@@ -104,14 +115,12 @@ export async function POST(req: Request) {
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     ];
 
-    if(!allowedTypes.includes(file.type)) {
+    if (!allowedTypes.includes(file.type)) {
       return NextResponse.json(
-        {message: "Only pdf, doc and docx files are allowed"},
-        {status: 400}
+        { message: "Only pdf, doc and docx files are allowed" },
+        { status: 400 },
       );
     }
-
-    console.log("checkpoint 3");
 
     const bucket = "documents";
     const safeOriginal = sanitizeFileName(file.name);
@@ -121,10 +130,7 @@ export async function POST(req: Request) {
 
     const buffer = Buffer.from(await file.arrayBuffer());
 
-    console.log("checkpoint 4");
-
-
-    // Upload via storage helper
+    // Upload to storage
     await uploadFileToStorage({
       bucket,
       path: storagePath,
@@ -132,19 +138,14 @@ export async function POST(req: Request) {
       contentType: file.type,
     });
 
-    console.log("checkpoint 4");
-
     // Extract Content
     const extracted = await extractDocumentContent({
       mimeType: file.type,
       buffer,
     });
 
-    console.log("checkpoint 5");
-
-
-    // Save document to db
-    const {data: inserted, error: insertError} = await supabaseAdmin
+    // Save document to db (AI fields initially pending)
+    const { data: inserted, error: insertError } = await supabaseAdmin
       .from("documents")
       .insert({
         user_id: me.id,
@@ -156,21 +157,74 @@ export async function POST(req: Request) {
         storage_path: storagePath,
         extracted_text: extracted.text,
         extracted_html: extracted.html,
+
+        summary: null,
+        keywords: [],
+        ai_status: "pending",
       })
       .select("*")
       .single();
 
-    if(insertError) {
+    if (insertError || !inserted) {
       // rollback storage
-      await supabaseAdmin.storage
-        .from(bucket)
-        .remove([storagePath]); 
+      await supabaseAdmin.storage.from(bucket).remove([storagePath]);
 
-      return NextResponse.json({message: insertError.message}, {status: 400});
+      return NextResponse.json(
+        { message: insertError?.message || "Insert failed" },
+        { status: 400 },
+      );
     }
 
-    return NextResponse.json({message: "Document uploaded", data: inserted}, {status: 201});
-  } catch (err) {
-    return NextResponse.json({message: err || "Server Error"}, {status: 500});
+    // AI Summary + Keywords
+    // If this fails, document upload still succeeds.
+    try {
+      console.log("AI: starting for doc", inserted.id);
+      await supabaseAdmin
+        .from("documents")
+        .update({ ai_status: "processing" })
+        .eq("id", inserted.id);
+
+      const { summary, keywords } = await generateSummaryAndKeywords(
+        extracted.text || "",
+      );
+
+      console.log("AI text length:", extracted.text?.length);
+      const result = await generateSummaryAndKeywords(extracted.text || "");
+      console.log("AI result:", result);
+
+      await supabaseAdmin
+        .from("documents")
+        .update({
+          summary,
+          keywords,
+          ai_status: "ready",
+        }).eq("id", inserted.id);
+    } catch (error) {
+      console.log("AI: failed for doc", error);
+      await supabaseAdmin
+        .from("documents")
+        .update({ ai_status: "failed" })
+        .eq("id", inserted.id);
+    }
+
+    // Return updated document
+    const { data: finalDoc } = await supabaseAdmin
+      .from("documents")
+      .select("*")
+      .eq("id", inserted.id)
+      .single();
+
+    console.log("AI: got response from OpenAI");
+
+    return NextResponse.json(
+      { message: "Document uploaded", data: finalDoc ?? inserted },
+      { status: 201 },
+    );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  } catch (err: any) {
+    return NextResponse.json(
+      { message: err?.message || "Server Error" },
+      { status: 500 },
+    );
   }
 }
